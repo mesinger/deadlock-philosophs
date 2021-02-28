@@ -8,6 +8,7 @@
 
 /*
  * What are the necessary conditions for deadlocks?
+ * all 4 must apply
  * mutual exclusion: dh. es gibt mindestens eine ressource die nicht zwischen mehreren threads geshared werden kann
  * hold and wait: ein thread holded gerade eine non-shareable ressource, und benoetigt eine andere non-shareable ressource, die gerade ein anderer thread haelt
  * no preemption: eine geholdede ressource kann nur vom thread selbst released werden
@@ -19,48 +20,62 @@
  * no preemption: Nur der Philosopher unlocked den mutex am fork
  * circular wait: wenn alle Philosopher gleichzeitig ihren linken fork locken, sind wiederum auch alle 'rechten' forks gelocked, dh. jeder Philosoph muss auf seinen rechten nachbar warten, der wiederum auf seinen rechten nachbar, ... -> circular wait
  *
- *
+ * Does this strategy resolve the deadlock and why?
+ * Yes. Ein circular wait kann unmoeglich zustanden kommen, da:
+ * ein odd phil locked seinen linken fork -> der even phil links daneben muss auf seinen nachbarn warten bis der fertig ist:
+ * Thread N wartet auf Thread N + 1
+ * der odd phil locked seinen rechten fork -> der even phil hat seinen rechten fork, muss aber auf den linken warten:
+ * Thread N + 1 wartet auf Thread N
  */
 
-int makeRand(int from, int to) {
+int makeRand(int from, int to)
+{
 	return (from + (rand() % (to - from))) % to;
 }
 
-class Fork {
+class Fork
+{
 public:
-	explicit Fork(int id) : id(id) {
+	explicit Fork(int id) : id(id)
+	{
 		m = new std::mutex;
 	}
 
-	virtual ~Fork() {
+	virtual ~Fork()
+	{
 		delete m;
 	}
 
-	void takeFork() {
+	void takeFork()
+	{
 		m->lock();
 	}
 
-	void releaseFork() {
+	void releaseFork()
+	{
 		m->unlock();
 	}
 
 	const int id;
 
 private:
-	std::mutex* m = nullptr;
+	std::mutex *m = nullptr;
 };
 
-class Philosopher {
+class Philosopher
+{
 public:
-	Philosopher(int id, int thinkingTime, int eatingTime) : id(id), thinkingTime(thinkingTime), eatingTime(eatingTime) {
-
+	Philosopher(int id, int thinkingTime, int eatingTime) : id(id), thinkingTime(thinkingTime), eatingTime(eatingTime)
+	{
 	}
 
 	virtual ~Philosopher() = default;
 
-	void thinkAndEat(Fork& leftFork, Fork& rightFork) {
+	void thinkAndEat(Fork &leftFork, Fork &rightFork)
+	{
 
-		while (running) {
+		while (running)
+		{
 
 			auto randomizedThinkingTime = makeRand(0, thinkingTime);
 			auto randomizedEatingTime = makeRand(0, eatingTime);
@@ -68,11 +83,22 @@ public:
 			std::this_thread::sleep_for(std::chrono::milliseconds(randomizedThinkingTime));
 			std::printf("philosopher %d finished thinking\n", id);
 
-			leftFork.takeFork();
-			std::printf("philosopher %d took left fork %d\n", id, leftFork.id);
+			if ((id % 2) == 1)
+			{
+				leftFork.takeFork();
+				std::printf("philosopher %d took left fork %d\n", id, leftFork.id);
 
-			rightFork.takeFork();
-			std::printf("philosopher %d took right fork %d\n", id, rightFork.id);
+				rightFork.takeFork();
+				std::printf("philosopher %d took right fork %d\n", id, rightFork.id);
+			}
+			else
+			{
+				rightFork.takeFork();
+				std::printf("philosopher %d took right fork %d\n", id, rightFork.id);
+
+				leftFork.takeFork();
+				std::printf("philosopher %d took left fork %d\n", id, leftFork.id);
+			}
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(randomizedEatingTime));
 
@@ -82,7 +108,8 @@ public:
 		}
 	}
 
-	void stopThinkingAndEating() {
+	void stopThinkingAndEating()
+	{
 		running = false;
 	}
 
@@ -95,7 +122,8 @@ private:
 	bool running = true;
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
 
 	srand((unsigned)time(NULL));
 
@@ -103,7 +131,8 @@ int main(int argc, char** argv) {
 	int maximalThinkingTime = std::stoi(argv[2]);
 	int maximalEatingTime = std::stoi(argv[3]);
 
-	if (numberOfPhilosophers < 2) {
+	if (numberOfPhilosophers < 2)
+	{
 		printf("Number of philosophers has to be >= 2");
 		return EXIT_FAILURE;
 	}
@@ -111,14 +140,16 @@ int main(int argc, char** argv) {
 	std::vector<Philosopher> phils;
 	phils.reserve(numberOfPhilosophers);
 
-	for (int i = 0; i < numberOfPhilosophers; i++) {
+	for (int i = 0; i < numberOfPhilosophers; i++)
+	{
 		phils.emplace_back(i, makeRand(10, maximalThinkingTime), makeRand(10, maximalEatingTime));
 	}
 
 	std::vector<Fork> forks;
 	forks.reserve(numberOfPhilosophers);
 
-	for (int i = 0; i < numberOfPhilosophers; i++) {
+	for (int i = 0; i < numberOfPhilosophers; i++)
+	{
 		forks.emplace_back(i);
 	}
 
@@ -127,18 +158,21 @@ int main(int argc, char** argv) {
 
 	printf("Enter and key to stop\n");
 
-	for (int i = 0; i < numberOfPhilosophers; i++) {
+	for (int i = 0; i < numberOfPhilosophers; i++)
+	{
 		threads.emplace_back([&, i] { phils[i].thinkAndEat(forks[i], forks[(i + 1) % numberOfPhilosophers]); });
 	}
 
 	std::cin.get();
 	printf("Stopping application...");
 
-	for (auto& phil : phils) {
+	for (auto &phil : phils)
+	{
 		phil.stopThinkingAndEating();
 	}
 
-	for (auto& thread : threads) {
+	for (auto &thread : threads)
+	{
 		thread.join();
 	}
 
