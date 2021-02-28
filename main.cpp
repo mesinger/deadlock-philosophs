@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <numeric>
 
 /*
  * What are the necessary conditions for deadlocks?
@@ -26,6 +27,26 @@
  * Thread N wartet auf Thread N + 1
  * der odd phil locked seinen rechten fork -> der even phil hat seinen rechten fork, muss aber auf den linken warten:
  * Thread N + 1 wartet auf Thread N
+ * 
+ * Average waiting time (Release mode):
+ * 2 500 500:
+ * p1 21 p2 11
+ * p1 26 p2 28
+ * p1 29 p2 29
+ * 
+ * 3 500 500
+ * p1 26 p2 29 p3 46
+ * p1 59 p2 54 p3 38
+ * p1 27 p2 37 p3 57
+ * p1 62 p2 5 p3 62
+ * 
+ * 3 500 1000
+ * p1 72 p2 47 p3 59
+ * p1 45 p2 82 p3 30
+ * p1 62 p2 87 p3 28
+ * 
+ * Can you think of other techniques for deadlock prevention?
+ * 
  */
 
 int makeRand(int from, int to)
@@ -73,6 +94,7 @@ public:
 
 	void thinkAndEat(Fork &leftFork, Fork &rightFork)
 	{
+		std::vector<float> timeWaitPercentages;
 
 		while (running)
 		{
@@ -82,6 +104,8 @@ public:
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(randomizedThinkingTime));
 			std::printf("philosopher %d finished thinking\n", id);
+
+			auto t1 = std::chrono::high_resolution_clock::now();
 
 			if ((id % 2) == 1)
 			{
@@ -100,12 +124,27 @@ public:
 				std::printf("philosopher %d took left fork %d\n", id, leftFork.id);
 			}
 
+			auto t2 = std::chrono::high_resolution_clock::now();
+
 			std::this_thread::sleep_for(std::chrono::milliseconds(randomizedEatingTime));
+			std::printf("philosopher %d finished eating\n", id);
 
 			leftFork.releaseFork();
 			rightFork.releaseFork();
-			std::printf("philosopher %d finished eating\n", id);
+
+			auto t3 = std::chrono::high_resolution_clock::now();
+
+			auto totalDuration = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t1).count();
+			auto forkWaitDuration  = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+
+			float percentageWaited = ((float) forkWaitDuration / totalDuration) * 100;
+			timeWaitPercentages.push_back(percentageWaited);
 		}
+
+		float percentagesSum = std::accumulate(timeWaitPercentages.begin(), timeWaitPercentages.end(), 0.f);
+		float averageTimeWaitPercentage = percentagesSum / timeWaitPercentages.size();
+
+		printf("philosopher %d waited an average %f percent for his forks\n", id, averageTimeWaitPercentage);
 	}
 
 	void stopThinkingAndEating()
